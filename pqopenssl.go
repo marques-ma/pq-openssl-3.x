@@ -28,7 +28,7 @@ func runDockerCommand(command []string) error {
 		"openquantumsafe/curl",
 	)
 	cmd.Args = append(cmd.Args, command...)
-
+	fmt.Println("This is default dir:", defaultdir)
 	fmt.Println("Running Docker command:", cmd.String())
 	return runCommand(cmd, "Failed to run Docker command")
 }
@@ -46,7 +46,7 @@ func GeneratePrivateKey(algorithm, outputFile string) error {
 func GenerateRootCertificate(algorithm, keyFile, outputFile, subj, spiffeID, configFile string, days int) error {
 
 	cmd := []string{
-		"sh", "-c", fmt.Sprintf("openssl req -x509 -newkey %s -keyout "+defaultdir+"/%s -out "+defaultdir+"/%s -days %d -subj %s -config %s -extensions v3_ca -nodes",
+		"sh", "-c", fmt.Sprintf("openssl req -x509 -sha384 -newkey %s -keyout "+defaultdir+"/%s -out "+defaultdir+"/%s -days %d -subj %s -config %s -extensions v3_ca -nodes",
 			algorithm, keyFile, outputFile, days, subj, configFile),
 	}
 	return runDockerCommand(cmd)
@@ -72,7 +72,7 @@ func SignCertificate(csrFile, caCertFile, caKeyFile, spiffeID, outputFile string
 }
 
 // StartServer starts an OpenSSL server on the specified port with the given certificate and private key.
-func StartServer(port int, certFile, keyFile, caFile string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error) {
+func StartServer(port int, certFile, keyFile, caFile, KemAlgorithm string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error) {
 	cmd := exec.Command(
 		"docker", "run", "--rm",
 		"--network", "host",
@@ -80,8 +80,8 @@ func StartServer(port int, certFile, keyFile, caFile string) (*exec.Cmd, io.Writ
 		// "-p", fmt.Sprintf("%d:%d", port, port),
 		"openquantumsafe/curl",
 		"sh", "-c", fmt.Sprintf(
-			`openssl s_server -accept %d -state -cert %s/server/%s -key %s/server/%s -tls1_3 -Verify 1 -CAfile %s -www -ignore_unexpected_eof -provider oqsprovider`,
-			port, defaultdir, certFile, defaultdir, keyFile, caFile),
+			`"openssl s_server -accept %d -state -cert %s/server/%s -key %s/server/%s -tls1_3 -Verify 1 -CAfile %s -www -debug  -ign_eof -provider oqsprovider -curves %s"`,
+			port, defaultdir, certFile, defaultdir, keyFile, caFile, KemAlgorithm),
 	)
 	fmt.Printf("Running command: %s\n", cmd)
 
@@ -103,33 +103,40 @@ func StartServer(port int, certFile, keyFile, caFile string) (*exec.Cmd, io.Writ
 }
 
 
-func StartClient(address, certFile, keyFile, caCertFile string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error) {
+func StartClient(address, certFile, keyFile, caCertFile, KemAlgorithm string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, io.ReadCloser, error) {
 	cmd := exec.Command(
 		"docker", "run", "--rm",
 		"--network", "host",
 		"-v", fmt.Sprintf("%s:%s", defaultdir, defaultdir),
 		"openquantumsafe/curl",
 		"sh", "-c", fmt.Sprintf(
-			`openssl s_client -connect %s -tls1_3 -state -cert %s/client/%s -key %s/client/%s -CAfile %s -provider oqsprovider`,
-			address, defaultdir, certFile, defaultdir, keyFile, caCertFile),
+			`"openssl s_client -connect %s -tls1_3 -state -cert %s/client/%s -key %s/client/%s -CAfile %s -provider oqsprovider -showcerts -ign_eof  -groups %s"`,
+			address, defaultdir, certFile, defaultdir, keyFile, caCertFile, KemAlgorithm),
 	)
 	fmt.Printf("Running client command: %s\n", cmd)
+	fmt.Printf("This is the default dir: %s\n", defaultdir)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
+	}
+
+	// Capture stderr
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return cmd, stdinPipe, stdoutPipe, nil
+	return cmd, stdinPipe, stdoutPipe, stderrPipe, nil
 }
 
 // runCommand executes an exec.Command and captures its output.

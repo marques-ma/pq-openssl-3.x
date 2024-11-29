@@ -73,23 +73,26 @@ func SignCertificate(csrFile, caCertFile, caKeyFile, spiffeID, outputFile string
 
 // StartServer starts an OpenSSL server on the specified port with the given certificate and private key.
 func StartServer(port int, certFile, keyFile, caFile, KemAlgorithm string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error) {
+	// cmd := exec.Command("echo","eae")
 	cmd := exec.Command(
 		"docker", "run", "--rm",
 		"--network", "host",
 		"-v", fmt.Sprintf("%s:%s", defaultdir, defaultdir), // Mount the current directory for access to cert and key files
-		// "-p", fmt.Sprintf("%d:%d", port, port),
+		"-it",
 		"openquantumsafe/curl",
 		"sh", "-c", fmt.Sprintf(
-			`"openssl s_server -accept %d -state -cert %s/server/%s -key %s/server/%s -tls1_3 -Verify 1 -CAfile %s -www -debug  -ign_eof -provider oqsprovider -curves %s"`,
+			`"openssl s_server -accept %d -state -cert %s/server/%s -key %s/server/%s -tls1_3 -Verify 1 -CAfile %s -debug  -ign_eof -provider oqsprovider -curves %s"`,
 			port, defaultdir, certFile, defaultdir, keyFile, caFile, KemAlgorithm),
 	)
 	fmt.Printf("Running command: %s\n", cmd)
 
+	// stdoutPipe, _ := cmd.StdoutPipe()
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
+	// stdinPipe, _ := cmd.StdinPipe()
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, nil, err
@@ -110,7 +113,7 @@ func StartClient(address, certFile, keyFile, caCertFile, KemAlgorithm string) (*
 		"-v", fmt.Sprintf("%s:%s", defaultdir, defaultdir),
 		"openquantumsafe/curl",
 		"sh", "-c", fmt.Sprintf(
-			`"openssl s_client -connect %s -tls1_3 -state -cert %s/client/%s -key %s/client/%s -CAfile %s -provider oqsprovider -showcerts -ign_eof  -groups %s"`,
+			`"echo olaaaaa | openssl s_client -connect %s -tls1_3 -state -cert %s/client/%s -key %s/client/%s -CAfile %s -provider oqsprovider -showcerts -ign_eof  -groups %s"`,
 			address, defaultdir, certFile, defaultdir, keyFile, caCertFile, KemAlgorithm),
 	)
 	fmt.Printf("Running client command: %s\n", cmd)

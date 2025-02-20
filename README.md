@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/886867653.svg)](https://doi.org/10.5281/zenodo.14902218)
 # Overview
 
 This package leverages the [OQS-Provider](https://github.com/open-quantum-safe/oqs-provider) container to allow the integration of its functionalities with minimal requirements impact and focus in potentializing the development of post-quantum proof of concepts in Go language.  
